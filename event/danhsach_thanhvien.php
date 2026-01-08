@@ -1,99 +1,183 @@
-<?php include '../header.php'; ?>
-<?php include '../connect.php'; ?>
+<?php 
+include '../header.php'; 
+include '../connect.php'; 
 
-<div class="row mb-3 align-items-center">
-    <div class="col-md-6">
-        <h2>Danh Sách Thành Viên</h2>
+// 1. Lấy id_clb và từ khóa tìm kiếm từ URL
+$id_clb_filter = isset($_GET['id_clb']) ? intval($_GET['id_clb']) : 0;
+$keyword = isset($_GET['q']) ? $conn->real_escape_string($_GET['q']) : '';
+
+// --- LOGIC PHÂN TRANG (Đồng bộ với code Sự kiện) ---
+$limit = 8; // Số thành viên mỗi trang
+$page = isset($_GET['p_mem']) ? intval($_GET['p_mem']) : 1;
+if ($page < 1) $page = 1;
+$start = ($page - 1) * $limit;
+
+// Xây dựng điều kiện lọc WHERE
+$conditions = [];
+if ($id_clb_filter > 0) $conditions[] = "t.id_clb = $id_clb_filter";
+if (!empty($keyword)) {
+    $conditions[] = "(t.hoten LIKE '%$keyword%' OR t.masv LIKE '%$keyword%' OR t.ban LIKE '%$keyword%')";
+}
+$where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
+
+// 2. Tính tổng số thành viên để chia trang
+$total_res = $conn->query("SELECT COUNT(*) as total FROM thanhvien t $where_clause");
+$total_data = $total_res->fetch_assoc();
+$total_mem = $total_data['total'];
+$total_pages = ceil($total_mem / $limit);
+?>
+
+<style>
+    /* CSS đồng bộ với giao diện Sự kiện */
+    .card-hover {
+        transition: all 0.3s ease-in-out;
+        border: 1px solid rgba(0,0,0,0.05);
+    }
+    .card-hover:hover {
+        transform: translateY(-12px);
+        box-shadow: 0 15px 30px rgba(13, 110, 253, 0.15) !important;
+        border-color: #0dcaf0;
+    }
+    .bg-soft-primary {
+        background-color: #e7f1ff;
+        color: #0d6efd;
+    }
+    .avatar-circle {
+        width: 60px;
+        height: 60px;
+        background: #f8f9fa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        margin: 0 auto 15px;
+        font-size: 1.5rem;
+        color: #6c757d;
+    }
+</style>
+
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4" data-aos="fade-right">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <?php 
+                if ($id_clb_filter > 0) {
+                    $clb_res = $conn->query("SELECT ten_clb FROM clb WHERE id = $id_clb_filter");
+                    $clb = $clb_res->fetch_assoc();
+                    echo "Thành Viên: <span class='text-info'>" . htmlspecialchars($clb['ten_clb']) . "</span>";
+                } else {
+                    echo "Danh Sách <span class='text-info'>Thành Viên</span>";
+                }
+                ?>
+            </h2>
+            <p class="text-muted">Quản lý nhân sự và thành viên các câu lạc bộ</p>
+        </div>
+        
+        <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
+            <a href="them_thanhvien.php?id_clb=<?= $id_clb_filter ?>" class="btn btn-success rounded-pill px-4 shadow-sm">
+                <i class="bi bi-person-plus-fill me-2"></i>Thêm Thành Viên
+            </a>
+        <?php endif; ?>
     </div>
 
-    <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
-        <div class="col-md-6 text-end">
-            <a href="them_thanhvien.php" class="btn btn-success">
-                <i class="bi bi-person-plus"></i> Thêm thành viên
-            </a>
-        </div>
-    <?php endif; ?>
-</div>
-
-
-    <div class="card mb-4 bg-light">
-        <div class="card-body">
-            <form action="" method="GET" class="row g-3">
-                <div class="col-md-8">
-                    <input type="text" name="q" class="form-control" 
-                           placeholder="Nhập tên, mã sinh viên hoặc ban..." 
-                           value="<?php echo isset($_GET['q']) ? htmlspecialchars($_GET['q']) : ''; ?>">
+    <div class="card mb-5 border-0 shadow-sm rounded-4 bg-light">
+        <div class="card-body p-3">
+            <form action="" method="GET" class="row g-2">
+                <input type="hidden" name="id_clb" value="<?= $id_clb_filter ?>">
+                <div class="col-md-9">
+                    <input type="text" name="q" class="form-control border-0 px-4 py-2 rounded-pill shadow-sm" 
+                           placeholder="Tìm tên, mã sinh viên, ban..." value="<?= htmlspecialchars($keyword) ?>">
                 </div>
-                <div class="col-md-4">
-                    <button type="submit" class="btn btn-primary w-100">Tìm kiếm</button>
+                <div class="col-md-3">
+                    <button type="submit" class="btn btn-primary w-100 rounded-pill py-2 shadow-sm">Tìm kiếm</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div class="table-responsive">
-        <table class="table table-bordered table-hover shadow-sm">
-            <thead class="table-dark">
-                <tr>
-                    <th>STT</th>
-                    <th>Mã SV</th>
-                    <th>Họ và Tên</th>
-                    <th>Ban</th>
-                    <th>Chức vụ</th>
-                    <th>Ngày tham gia</th>
-                    <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
-                        <th class="text-center">Hành động</th>
-                    <?php endif; ?>
-                </tr>
-            </thead>
-            <tbody>
-                <?php
-                $search = "";
-                if (isset($_GET['q']) && !empty($_GET['q'])) {
-                    $keyword = $conn->real_escape_string($_GET['q']);
-                    $search = "WHERE hoten LIKE '%$keyword%' OR masv LIKE '%$keyword%' OR ban LIKE '%$keyword%'";
-                }
+    <div class="row g-4">
+        <?php
+        $sql = "SELECT t.*, c.ten_clb 
+                FROM thanhvien t 
+                LEFT JOIN clb c ON t.id_clb = c.id 
+                $where_clause 
+                ORDER BY t.id DESC 
+                LIMIT $start, $limit";
+        $result = $conn->query($sql);
 
-                $sql = "SELECT * FROM thanhvien $search ORDER BY id DESC";
-                $result = $conn->query($sql);
+        if ($result && $result->num_rows > 0):
+            while ($row = $result->fetch_assoc()):
+        ?>
+        <div class="col-lg-3 col-md-6" data-aos="fade-up">
+            <div class="card border-0 shadow-sm rounded-4 h-100 card-hover text-center">
+                <div class="card-body p-4 d-flex flex-column">
+                    <span class="badge bg-soft-primary mb-3 align-self-center px-3 py-2 rounded-pill">
+                        <i class="bi bi-bookmark-fill me-1"></i>
+                        <?= htmlspecialchars($row['ten_clb'] ?? 'Thành viên chung') ?>
+                    </span>
+                    
+                    <div class="avatar-circle">
+                        <i class="bi bi-person-badge"></i>
+                    </div>
+                    
+                    <h5 class="fw-bold text-dark mb-1"><?= htmlspecialchars($row['hoten']) ?></h5>
+                    <p class="text-muted small mb-3"><?= htmlspecialchars($row['masv']) ?></p>
+                    
+                    <div class="mb-3">
+                        <div class="text-info fw-bold small text-uppercase"><?= htmlspecialchars($row['ban']) ?></div>
+                        <div class="badge bg-light text-dark border"><?= htmlspecialchars($row['chucvu']) ?></div>
+                    </div>
 
-                if ($result && $result->num_rows > 0) {
-                    $stt = 1;
-                    while($row = $result->fetch_assoc()) {
-                ?>
-                        <tr>
-                            <td><?php echo $stt++; ?></td>
-                            <td><?php echo $row['masv']; ?></td>
-                            <td><b><?php echo $row['hoten']; ?></b></td>
-                            <td><span class='badge bg-info text-dark'><?php echo $row['ban']; ?></span></td>
-                            <td><?php echo $row['chucvu']; ?></td>
-                            <td><?php echo $row['ngaythamgia']; ?></td>
-                            
-                            <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
-                                <td class="text-center">
-                                    <div class="btn-group">
-                                        <a href="sua_thanhvien.php?id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-warning border-0" title="Sửa">
-                                            <i class="bi bi-pencil"></i>
-                                        </a>
-                                        <a href="xoa_thanhvien.php?id=<?= $row['id'] ?>" class="btn btn-sm btn-outline-danger border-0" onclick="return confirm('Xóa thành viên này?')" title="Xóa">
-                                            <i class="bi bi-trash"></i>
-                                        </a>
-                                      
-                                    </div>
-                                </td>
-                            <?php endif; ?>
-                        </tr>
-                <?php
-                    }       
-                } else {
-                    // Tính toán số cột cần gộp (colspan) tùy theo vai trò
-                    $col_count = (isset($_SESSION['role']) && $_SESSION['role'] == 'admin') ? 7 : 6;
-                    echo "<tr><td colspan='$col_count' class='text-center'>Không tìm thấy dữ liệu</td></tr>";
-                }
-                ?>
-            </tbody>
-        </table>
+                    <div class="mt-auto pt-3 border-top">
+                        <p class="text-muted small mb-3">
+                            <i class="bi bi-calendar-event me-1"></i> Tham gia: <?= date("d/m/Y", strtotime($row['ngaythamgia'])) ?>
+                        </p>
+                        
+                        <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
+                            <div class="btn-group w-100">
+                                <a href="sua_thanhvien.php?id=<?= $row['id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="Sửa"><i class="bi bi-pencil-square"></i></a>
+                                <a href="xoa_thanhvien.php?id=<?= $row['id'] ?>" class="btn btn-outline-danger btn-sm border-0" title="Xóa" onclick="return confirm('Xóa thành viên này?')"><i class="bi bi-trash"></i></a>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endwhile; else: ?>
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-person-x" style="font-size: 3rem; color: #ccc;"></i>
+                <p class="text-muted mt-3">Không tìm thấy dữ liệu thành viên.</p>
+                <a href="danhsach_thanhvien.php" class="btn btn-outline-primary btn-sm rounded-pill">Làm mới danh sách</a>
+            </div>
+        <?php endif; ?>
     </div>
+
+    <?php if ($total_pages > 1): ?>
+    <nav class="mt-5">
+        <ul class="pagination justify-content-center">
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                <a class="page-link border-0 shadow-sm mx-1 rounded-circle" 
+                   href="?id_clb=<?= $id_clb_filter ?>&q=<?= urlencode($keyword) ?>&p_mem=<?= $page - 1 ?>">
+                    <i class="bi bi-chevron-left"></i>
+                </a>
+            </li>
+
+            <?php for($i = 1; $i <= $total_pages; $i++): ?>
+                <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                    <a class="page-link border-0 shadow-sm mx-1 rounded-circle <?= ($page == $i) ? 'bg-primary text-white' : '' ?>" 
+                       href="?id_clb=<?= $id_clb_filter ?>&q=<?= urlencode($keyword) ?>&p_mem=<?= $i ?>"><?= $i ?></a>
+                </li>
+            <?php endfor; ?>
+
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                <a class="page-link border-0 shadow-sm mx-1 rounded-circle" 
+                   href="?id_clb=<?= $id_clb_filter ?>&q=<?= urlencode($keyword) ?>&p_mem=<?= $page + 1 ?>">
+                    <i class="bi bi-chevron-right"></i>
+                </a>
+            </li>
+        </ul>
+    </nav>
+    <?php endif; ?>
 </div>
 
 <?php include '../footer.php'; ?>

@@ -5,24 +5,34 @@ if (session_status() === PHP_SESSION_NONE) {
 include 'connect.php';
 include 'header.php';
 
+// Nếu đã đăng nhập rồi thì quay về trang chủ luôn, không cho ở lại trang login
+if (isset($_SESSION['user_id'])) {
+    header("Location: index.php");
+    exit();
+}
+
 if (isset($_POST['btnDangNhap'])) {
-    // Sử dụng real_escape_string để bảo mật cơ bản
     $username = mysqli_real_escape_string($conn, $_POST['username']);
     $password = $_POST['password'];
 
-    // Sửa tên bảng thành 'taikhoan' theo database thực tế của bạn
-    $sql = "SELECT * FROM taikhoan WHERE username = '$username'";
-    $result = $conn->query($sql);
+    // Sử dụng Prepared Statement để chống SQL Injection (Bảo mật hơn)
+    $stmt = $conn->prepare("SELECT * FROM taikhoan WHERE username = ?");
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
     if ($result && $result->num_rows > 0) {
         $user = $result->fetch_assoc();
         
-        // Kiểm tra mật khẩu mã hóa
+        // Kiểm tra mật khẩu (Hỗ trợ cả mã hóa password_hash và text thuần)
         if ($password == $user['password'] || password_verify($password, $user['password'])) {
-            // Thiết lập Session khớp với file header.php đang dùng
+            
+            // LƯU SESSION ĐỂ DASHBOARD VÀ HEADER NHẬN DIỆN
+            $_SESSION['user_id']  = $user['id']; 
             $_SESSION['username'] = $user['username'];
-            $_SESSION['role'] = $user['vaitro']; // 'vaitro' thay vì 'role'
-            $_SESSION['hoten'] = $user['hoten'];
+            $_SESSION['role']     = $user['vaitro']; 
+            $_SESSION['hoten']    = $user['hoten'];
+            $_SESSION['id_clb']   = $user['id_clb']; // ID CLB dành cho Chủ nhiệm
 
             echo "<script>alert('Đăng nhập thành công! Chào " . $user['hoten'] . "'); window.location.href='index.php';</script>";
         } else {
@@ -35,33 +45,44 @@ if (isset($_POST['btnDangNhap'])) {
 ?>
 
 <div class="container mt-5 mb-5">
-    <div class="card shadow-lg mx-auto border-0" style="max-width: 400px; border-radius: 15px;">
-        <div class="card-body p-4">
-            <h3 class="text-center mb-4 fw-bold text-primary">ĐĂNG NHẬP</h3>
+    <div class="card shadow-lg mx-auto border-0" style="max-width: 450px; border-radius: 20px;">
+        <div class="card-body p-5">
+            <div class="text-center mb-4">
+                <div class="display-4 text-primary"><i class="bi bi-person-circle"></i></div>
+                <h3 class="fw-bold text-uppercase mt-2">Đăng Nhập</h3>
+                <p class="text-muted small">Dành cho Thành viên & Ban quản lý CLB</p>
+            </div>
+
             <form method="POST">
                 <div class="mb-3">
-                    <label class="form-label fw-bold small">Tên đăng nhập</label>
+                    <label class="form-label fw-bold">Tên đăng nhập</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-person"></i></span>
-                        <input type="text" name="username" class="form-control bg-light border-start-0" placeholder="Nhập username" required>
+                        <input type="text" name="username" class="form-control bg-light border-start-0" placeholder="Username" required>
                     </div>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label fw-bold small">Mật khẩu</label>
+                
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Mật khẩu</label>
                     <div class="input-group">
                         <span class="input-group-text bg-light border-end-0"><i class="bi bi-lock"></i></span>
-                        <input type="password" name="password" class="form-control bg-light border-start-0" placeholder="Nhập mật khẩu" required>
+                        <input type="password" name="password" class="form-control bg-light border-start-0" placeholder="••••••••" required>
                     </div>
                 </div>
-                <div class="d-grid mt-4">
-                    <button type="submit" name="btnDangNhap" class="btn btn-primary btn-lg rounded-pill shadow-sm fw-bold">ĐĂNG NHẬP</button>
+
+                <div class="d-grid">
+                    <button type="submit" name="btnDangNhap" class="btn btn-primary btn-lg rounded-pill shadow-sm fw-bold">
+                        VÀO HỆ THỐNG
+                    </button>
                 </div>
-                <div class="text-center mt-3 small">
-                    Chưa có tài khoản? <a href="dangky.php" class="text-decoration-none">Đăng ký ngay</a>
+
+                <div class="text-center mt-4">
+                    <span class="text-muted">Chưa có tài khoản?</span> 
+                    <a href="dangky.php" class="text-decoration-none fw-bold text-primary">Đăng ký ngay</a>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<?php include '../footer.php'; ?>
+<?php include 'footer.php'; ?>

@@ -5,9 +5,13 @@ if (session_status() === PHP_SESSION_NONE) {
 
 /**
  * BASE URL của dự án
- * ĐỔI nếu bạn đổi tên folder BAICUOIKY
  */
 define('BASE_URL', '/BAICUOIKY/');
+
+/**
+ * Kết nối Database ngay tại đầu Header để dùng chung cho các Menu
+ */
+include_once __DIR__ . '/connect.php';
 
 /**
  * Helper check active menu
@@ -35,7 +39,6 @@ function isActive($file)
 
 <nav class="navbar navbar-expand-lg navbar-light sticky-top shadow-sm bg-white">
     <div class="container">
-        <!-- LOGO -->
         <a class="navbar-brand d-flex align-items-center" href="<?= BASE_URL ?>index.php">
             <i class="bi bi-rocket-takeoff-fill fs-3 text-primary me-2"></i>
             <span class="fw-bold text-dark">SV-MANAGER</span>
@@ -46,7 +49,6 @@ function isActive($file)
         </button>
 
         <div class="collapse navbar-collapse" id="navbarNav">
-            <!-- MENU GIỮA -->
             <ul class="navbar-nav mx-auto">
                 <li class="nav-item">
                     <a class="nav-link <?= isActive('index.php') ?>" href="<?= BASE_URL ?>index.php">
@@ -54,34 +56,46 @@ function isActive($file)
                     </a>
                 </li>
 
-                <li class="nav-item">
-                    <a class="nav-link <?= isActive('danhsach_thanhvien.php') ?>"
-                       href="<?= BASE_URL ?>event/danhsach_thanhvien.php">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle <?= (strpos($_SERVER['PHP_SELF'], 'thanhvien') !== false) ? 'active text-primary fw-bold' : '' ?>"
+                       href="#" role="button" data-bs-toggle="dropdown">
                         Thành viên
                     </a>
+                    <ul class="dropdown-menu shadow border-0">
+                        <li><hr class="dropdown-divider"></li>
+                        <?php
+                        // Lấy danh sách CLB cho menu Thành viên
+                        $menu_clb_thanhvien = $conn->query("SELECT id, ten_clb FROM clb");
+                        if ($menu_clb_thanhvien && $menu_clb_thanhvien->num_rows > 0):
+                            while ($clb = $menu_clb_thanhvien->fetch_assoc()):
+                        ?>
+                            <li>
+                                <a class="dropdown-item" 
+                                   href="<?= BASE_URL ?>event/danhsach_thanhvien.php?id_clb=<?= $clb['id'] ?>">
+                                    <?= htmlspecialchars($clb['ten_clb']) ?>
+                                </a>
+                            </li>
+                        <?php endwhile; endif; ?>
+                    </ul>
                 </li>
 
-                <!-- DROPDOWN SỰ KIỆN -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle <?= (strpos($_SERVER['PHP_SELF'], 'sukien') !== false) ? 'active text-primary fw-bold' : '' ?>"
                        href="#" role="button" data-bs-toggle="dropdown">
                         Sự kiện
                     </a>
                     <ul class="dropdown-menu shadow border-0">
-
                         <li>
                             <a class="dropdown-item" href="<?= BASE_URL ?>event/danhsach_sukien.php">
-                                Tất cả sự kiện
+                                <i class="bi bi-calendar-event me-2"></i>Tất cả sự kiện
                             </a>
                         </li>
-
                         <li><hr class="dropdown-divider"></li>
-
                         <?php
-                        include_once __DIR__ . '/connect.php';
-                        $menu_clb = $conn->query("SELECT id, ten_clb FROM clb");
-                        if ($menu_clb && $menu_clb->num_rows > 0):
-                            while ($clb = $menu_clb->fetch_assoc()):
+                        // Reset con trỏ dữ liệu hoặc truy vấn lại cho menu Sự kiện
+                        $menu_clb_sukien = $conn->query("SELECT id, ten_clb FROM clb");
+                        if ($menu_clb_sukien && $menu_clb_sukien->num_rows > 0):
+                            while ($clb = $menu_clb_sukien->fetch_assoc()):
                         ?>
                             <li>
                                 <a class="dropdown-item"
@@ -89,10 +103,7 @@ function isActive($file)
                                     <?= htmlspecialchars($clb['ten_clb']) ?>
                                 </a>
                             </li>
-                        <?php
-                            endwhile;
-                        endif;
-                        ?>
+                        <?php endwhile; endif; ?>
                     </ul>
                 </li>
 
@@ -111,7 +122,6 @@ function isActive($file)
                 </li>
             </ul>
 
-            <!-- USER -->
             <div class="d-flex align-items-center gap-3">
                 <?php if (isset($_SESSION['username'])): ?>
                     <div class="dropdown">
