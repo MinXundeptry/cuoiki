@@ -1,0 +1,33 @@
+/* Tùy chỉnh bảng và các thành phần giao diện */
+.table-responsive {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.table thead {
+    background-color: #212529;
+    color: white;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.03);
+    transition: background-color 0.2s ease;
+}
+
+/* Badge tùy chỉnh */
+.badge {
+    padding: 0.5em 0.8em;
+    font-weight: 500;
+}
+
+/* Hiệu ứng cho các nút hành động */
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    border-radius: 5px;
+}
+
+.search-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
