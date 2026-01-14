@@ -2,33 +2,57 @@
 include '../header.php'; 
 include '../connect.php'; 
 
-// 1. Lấy id_clb và từ khóa tìm kiếm từ URL
+// 1. Khởi tạo các biến tránh lỗi Undefined
 $id_clb_filter = isset($_GET['id_clb']) ? intval($_GET['id_clb']) : 0;
 $keyword = isset($_GET['q']) ? $conn->real_escape_string($_GET['q']) : '';
 
-// --- LOGIC PHÂN TRANG (Đồng bộ với code Sự kiện) ---
-$limit = 8; // Số thành viên mỗi trang
+/**
+ * 2. LOGIC PHÂN QUYỀN (ĐÃ SỬA)
+ * - Nếu không chọn CLB nào (?id_clb trống) và là Chủ nhiệm -> Mặc định xem CLB của mình.
+ * - Nếu có chọn CLB cụ thể -> Cho phép xem (nhưng sẽ chặn Sửa/Xóa ở phần hiển thị bên dưới).
+ */
+if ($id_clb_filter <= 0 && isset($_SESSION['role'])) {
+    $role_check = mb_strtolower($_SESSION['role'], 'UTF-8');
+    if (($role_check === 'chunhiem' || $role_check === 'chủ nhiệm') && isset($_SESSION['id_clb'])) {
+        $id_clb_filter = intval($_SESSION['id_clb']);
+    }
+}
+
+// 3. LOGIC PHÂN TRANG
+$limit = 8; 
 $page = isset($_GET['p_mem']) ? intval($_GET['p_mem']) : 1;
 if ($page < 1) $page = 1;
 $start = ($page - 1) * $limit;
 
-// Xây dựng điều kiện lọc WHERE
+// 4. Xây dựng điều kiện lọc WHERE
 $conditions = [];
-if ($id_clb_filter > 0) $conditions[] = "t.id_clb = $id_clb_filter";
+if ($id_clb_filter > 0) {
+    $conditions[] = "t.id_clb = $id_clb_filter";
+}
 if (!empty($keyword)) {
     $conditions[] = "(t.hoten LIKE '%$keyword%' OR t.masv LIKE '%$keyword%' OR t.ban LIKE '%$keyword%')";
 }
 $where_clause = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
-// 2. Tính tổng số thành viên để chia trang
+// 5. Tính tổng số thành viên để chia trang
 $total_res = $conn->query("SELECT COUNT(*) as total FROM thanhvien t $where_clause");
 $total_data = $total_res->fetch_assoc();
 $total_mem = $total_data['total'];
 $total_pages = ceil($total_mem / $limit);
+
+// Kiểm tra xem Chủ nhiệm có đang xem đúng CLB của mình hay không
+$is_my_clb = false;
+if (isset($_SESSION['role'])) {
+    $role_session = mb_strtolower($_SESSION['role'], 'UTF-8');
+    if ($role_session === 'admin') {
+        $is_my_clb = true; // Admin có quyền mọi nơi
+    } elseif (($role_session === 'chunhiem' || $role_session === 'chủ nhiệm') && $id_clb_filter == $_SESSION['id_clb']) {
+        $is_my_clb = true; // Chủ nhiệm xem đúng CLB của mình
+    }
+}
 ?>
 
 <style>
-    /* CSS đồng bộ với giao diện Sự kiện */
     .card-hover {
         transition: all 0.3s ease-in-out;
         border: 1px solid rgba(0,0,0,0.05);
@@ -43,16 +67,11 @@ $total_pages = ceil($total_mem / $limit);
         color: #0d6efd;
     }
     .avatar-circle {
-        width: 60px;
-        height: 60px;
+        width: 60px; height: 60px;
         background: #f8f9fa;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-        margin: 0 auto 15px;
-        font-size: 1.5rem;
-        color: #6c757d;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 50%; margin: 0 auto 15px;
+        font-size: 1.5rem; color: #6c757d;
     }
 </style>
 
@@ -63,8 +82,10 @@ $total_pages = ceil($total_mem / $limit);
                 <?php 
                 if ($id_clb_filter > 0) {
                     $clb_res = $conn->query("SELECT ten_clb FROM clb WHERE id = $id_clb_filter");
-                    $clb = $clb_res->fetch_assoc();
-                    echo "Thành Viên: <span class='text-info'>" . htmlspecialchars($clb['ten_clb']) . "</span>";
+                    if($clb_res && $clb_res->num_rows > 0) {
+                        $clb = $clb_res->fetch_assoc();
+                        echo "Thành Viên: <span class='text-info'>" . htmlspecialchars($clb['ten_clb']) . "</span>";
+                    }
                 } else {
                     echo "Danh Sách <span class='text-info'>Thành Viên</span>";
                 }
@@ -73,7 +94,7 @@ $total_pages = ceil($total_mem / $limit);
             <p class="text-muted">Quản lý nhân sự và thành viên các câu lạc bộ</p>
         </div>
         
-        <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
+        <?php if ($is_my_clb): ?>
             <a href="them_thanhvien.php?id_clb=<?= $id_clb_filter ?>" class="btn btn-success rounded-pill px-4 shadow-sm">
                 <i class="bi bi-person-plus-fill me-2"></i>Thêm Thành Viên
             </a>
@@ -133,10 +154,19 @@ $total_pages = ceil($total_mem / $limit);
                             <i class="bi bi-calendar-event me-1"></i> Tham gia: <?= date("d/m/Y", strtotime($row['ngaythamgia'])) ?>
                         </p>
                         
-                        <?php if (isset($_SESSION['role']) && $_SESSION['role'] == 'admin'): ?>
+                        <?php 
+                        $can_edit = false;
+                        if (isset($_SESSION['role'])) {
+                            $role = mb_strtolower($_SESSION['role'], 'UTF-8');
+                            if ($role === 'admin') $can_edit = true;
+                            if (($role === 'chunhiem' || $role === 'chủ nhiệm') && $row['id_clb'] == $_SESSION['id_clb']) $can_edit = true;
+                        }
+                        
+                        if ($can_edit): 
+                        ?>
                             <div class="btn-group w-100">
-                                <a href="sua_thanhvien.php?id=<?= $row['id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="Sửa"><i class="bi bi-pencil-square"></i></a>
-                                <a href="xoa_thanhvien.php?id=<?= $row['id'] ?>" class="btn btn-outline-danger btn-sm border-0" title="Xóa" onclick="return confirm('Xóa thành viên này?')"><i class="bi bi-trash"></i></a>
+                                <a href="sua_thanhvien.php?id=<?= $row['id'] ?>" class="btn btn-outline-warning btn-sm border-0"><i class="bi bi-pencil-square"></i></a>
+                                <a href="xoa_thanhvien.php?id=<?= $row['id'] ?>" class="btn btn-outline-danger btn-sm border-0" onclick="return confirm('Xóa thành viên này?')"><i class="bi bi-trash"></i></a>
                             </div>
                         <?php endif; ?>
                     </div>

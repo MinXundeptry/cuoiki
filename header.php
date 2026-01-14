@@ -6,21 +6,49 @@ if (session_status() === PHP_SESSION_NONE) {
 /**
  * BASE URL của dự án
  */
-define('BASE_URL', '/BAICUOIKY/');
+if (!defined('BASE_URL')) {
+    define('BASE_URL', '/BAICUOIKY/');
+}
 
 /**
- * Kết nối Database ngay tại đầu Header để dùng chung cho các Menu
+ * Kết nối Database
  */
 include_once __DIR__ . '/connect.php';
+
+/**
+ * 1. Tối ưu: Lấy danh sách CLB một lần duy nhất
+ */
+$list_clb = [];
+if (isset($conn)) {
+    $query_clb = $conn->query("SELECT id, ten_clb FROM clb");
+    if ($query_clb && $query_clb->num_rows > 0) {
+        while ($row = $query_clb->fetch_assoc()) {
+            $list_clb[] = $row;
+        }
+    }
+}
+
+/**
+ * 2. Kiểm tra vai trò (Fix lỗi hiển thị Chủ nhiệm)
+ */
+$is_management = false;
+$role_display = 'Thành viên';
+
+if (isset($_SESSION['role'])) {
+    // Chuyển về chữ thường, bỏ khoảng trắng để so sánh chuẩn xác
+    $role = trim(mb_strtolower($_SESSION['role'], 'UTF-8'));
+    if ($role === 'admin' || $role === 'chủ nhiệm' || $role === 'chunhiem') {
+        $is_management = true;
+        $role_display = ($role === 'admin') ? 'Quản trị viên' : 'Chủ nhiệm CLB';
+    }
+}
 
 /**
  * Helper check active menu
  */
 function isActive($file)
 {
-    return basename($_SERVER['PHP_SELF']) === $file
-        ? 'active text-primary fw-bold'
-        : '';
+    return basename($_SERVER['PHP_SELF']) === $file ? 'active text-primary fw-bold' : '';
 }
 ?>
 <!DOCTYPE html>
@@ -34,6 +62,18 @@ function isActive($file)
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <link rel="stylesheet" href="<?= BASE_URL ?>css/header.css">
+    
+    <style>
+        /* CSS bổ trợ để đảm bảo menu không bị đè */
+        .dropdown-menu {
+            z-index: 2000 !important;
+            margin-top: 10px !important;
+        }
+        .user-nav-item {
+            cursor: pointer;
+            user-select: none;
+        }
+    </style>
 </head>
 <body>
 
@@ -51,96 +91,59 @@ function isActive($file)
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav mx-auto">
                 <li class="nav-item">
-                    <a class="nav-link <?= isActive('index.php') ?>" href="<?= BASE_URL ?>index.php">
-                        Trang chủ
-                    </a>
+                    <a class="nav-link <?= isActive('index.php') ?>" href="<?= BASE_URL ?>index.php">Trang chủ</a>
                 </li>
 
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle <?= (strpos($_SERVER['PHP_SELF'], 'thanhvien') !== false) ? 'active text-primary fw-bold' : '' ?>"
-                       href="#" role="button" data-bs-toggle="dropdown">
-                        Thành viên
-                    </a>
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Thành viên</a>
                     <ul class="dropdown-menu shadow border-0">
-                        <li><hr class="dropdown-divider"></li>
-                        <?php
-                        // Lấy danh sách CLB cho menu Thành viên
-                        $menu_clb_thanhvien = $conn->query("SELECT id, ten_clb FROM clb");
-                        if ($menu_clb_thanhvien && $menu_clb_thanhvien->num_rows > 0):
-                            while ($clb = $menu_clb_thanhvien->fetch_assoc()):
-                        ?>
-                            <li>
-                                <a class="dropdown-item" 
-                                   href="<?= BASE_URL ?>event/danhsach_thanhvien.php?id_clb=<?= $clb['id'] ?>">
-                                    <?= htmlspecialchars($clb['ten_clb']) ?>
-                                </a>
-                            </li>
-                        <?php endwhile; endif; ?>
+                        <?php foreach ($list_clb as $clb): ?>
+                            <li><a class="dropdown-item" href="<?= BASE_URL ?>event/danhsach_thanhvien.php?id_clb=<?= $clb['id'] ?>"><?= htmlspecialchars($clb['ten_clb']) ?></a></li>
+                        <?php endforeach; ?>
                     </ul>
                 </li>
 
                 <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle <?= (strpos($_SERVER['PHP_SELF'], 'sukien') !== false) ? 'active text-primary fw-bold' : '' ?>"
-                       href="#" role="button" data-bs-toggle="dropdown">
-                        Sự kiện
-                    </a>
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Sự kiện</a>
                     <ul class="dropdown-menu shadow border-0">
-                        <li>
-                            <a class="dropdown-item" href="<?= BASE_URL ?>event/danhsach_sukien.php">
-                                <i class="bi bi-calendar-event me-2"></i>Tất cả sự kiện
-                            </a>
-                        </li>
+                        <li><a class="dropdown-item" href="<?= BASE_URL ?>event/danhsach_sukien.php"><i class="bi bi-calendar-event me-2"></i>Tất cả</a></li>
                         <li><hr class="dropdown-divider"></li>
-                        <?php
-                        // Reset con trỏ dữ liệu hoặc truy vấn lại cho menu Sự kiện
-                        $menu_clb_sukien = $conn->query("SELECT id, ten_clb FROM clb");
-                        if ($menu_clb_sukien && $menu_clb_sukien->num_rows > 0):
-                            while ($clb = $menu_clb_sukien->fetch_assoc()):
-                        ?>
-                            <li>
-                                <a class="dropdown-item"
-                                   href="<?= BASE_URL ?>event/danhsach_sukien.php?id_clb=<?= $clb['id'] ?>">
-                                    <?= htmlspecialchars($clb['ten_clb']) ?>
-                                </a>
-                            </li>
-                        <?php endwhile; endif; ?>
+                        <?php foreach ($list_clb as $clb): ?>
+                            <li><a class="dropdown-item" href="<?= BASE_URL ?>event/danhsach_sukien.php?id_clb=<?= $clb['id'] ?>"><?= htmlspecialchars($clb['ten_clb']) ?></a></li>
+                        <?php endforeach; ?>
                     </ul>
                 </li>
 
-                <?php if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin'): ?>
+                <?php if (!$is_management): ?>
                 <li class="nav-item">
-                    <a class="nav-link <?= isActive('danhsachdki.php') ?>" href="<?= BASE_URL ?>danhsachdki.php">
-                        Đăng ký
-                    </a>
+                    <a class="nav-link <?= isActive('danhsachdki.php') ?>" href="<?= BASE_URL ?>danhsachdki.php">Đăng ký</a>
                 </li>
                 <?php endif; ?>
 
                 <li class="nav-item">
-                    <a class="nav-link <?= isActive('danhsach_tintuc.php') ?>" href="<?= BASE_URL ?>danhsach_tintuc.php">
-                        Tin tức
-                    </a>
+                    <a class="nav-link <?= isActive('danhsach_tintuc.php') ?>" href="<?= BASE_URL ?>danhsach_tintuc.php">Tin tức</a>
                 </li>
             </ul>
 
             <div class="d-flex align-items-center gap-3">
                 <?php if (isset($_SESSION['username'])): ?>
                     <div class="dropdown">
-                        <a class="d-flex align-items-center text-decoration-none text-dark dropdown-toggle"
-                           href="#" role="button" data-bs-toggle="dropdown">
+                        <div class="user-nav-item d-flex align-items-center dropdown-toggle" 
+                             id="dropdownUser" 
+                             data-bs-toggle="dropdown" 
+                             aria-expanded="false">
                             <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2"
-                                 style="width:35px;height:35px;">
-                                <?= strtoupper(substr($_SESSION['username'], 0, 1)) ?>
+                                 style="width:35px;height:35px; font-weight: bold;">
+                                <?= mb_strtoupper(mb_substr($_SESSION['username'], 0, 1, 'UTF-8'), 'UTF-8') ?>
                             </div>
-                            <div>
-                                <div class="fw-semibold lh-1"><?= $_SESSION['username'] ?></div>
-                                <small class="text-muted">
-                                    <?= $_SESSION['role'] === 'admin' ? 'Quản trị viên' : 'Thành viên' ?>
-                                </small>
+                            <div class="lh-1">
+                                <div class="fw-semibold text-dark"><?= htmlspecialchars($_SESSION['username']) ?></div>
+                                <small class="text-muted" style="font-size: 11px;"><?= $role_display ?></small>
                             </div>
-                        </a>
+                        </div>
 
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0">
-                            <?php if ($_SESSION['role'] === 'admin'): ?>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="dropdownUser">
+                            <?php if ($is_management): ?>
                                 <li>
                                     <a class="dropdown-item" href="<?= BASE_URL ?>event/duyetdangki.php">
                                         <i class="bi bi-clipboard-check me-2"></i>Duyệt đăng ký
@@ -156,7 +159,7 @@ function isActive($file)
 
                             <li>
                                 <a class="dropdown-item" href="<?= BASE_URL ?>ho_so.php">
-                                    <i class="bi bi-person me-2"></i>Hồ sơ
+                                    <i class="bi bi-person me-2"></i>Hồ sơ cá nhân
                                 </a>
                             </li>
                             <li>
@@ -167,12 +170,8 @@ function isActive($file)
                         </ul>
                     </div>
                 <?php else: ?>
-                    <a href="<?= BASE_URL ?>dangnhap.php" class="btn btn-outline-primary rounded-pill px-4">
-                        Đăng nhập
-                    </a>
-                    <a href="<?= BASE_URL ?>dangky.php" class="btn btn-primary rounded-pill px-4">
-                        Đăng ký
-                    </a>
+                    <a href="<?= BASE_URL ?>dangnhap.php" class="btn btn-outline-primary rounded-pill px-4">Đăng nhập</a>
+                    <a href="<?= BASE_URL ?>dangky.php" class="btn btn-primary rounded-pill px-4">Đăng ký</a>
                 <?php endif; ?>
             </div>
         </div>

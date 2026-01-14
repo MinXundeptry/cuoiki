@@ -27,21 +27,50 @@ if (isset($_POST['btnDangNhap'])) {
         // Kiểm tra mật khẩu (Hỗ trợ cả mã hóa password_hash và text thuần)
         if ($password == $user['password'] || password_verify($password, $user['password'])) {
             
-            // LƯU SESSION ĐỂ DASHBOARD VÀ HEADER NHẬN DIỆN
-            $_SESSION['user_id']  = $user['id']; 
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['role']     = $user['vaitro']; 
-            $_SESSION['hoten']    = $user['hoten'];
-            $_SESSION['id_clb']   = $user['id_clb']; // ID CLB dành cho Chủ nhiệm
+     // ... (Đoạn mã sau khi password_verify thành công)
 
-            echo "<script>alert('Đăng nhập thành công! Chào " . $user['hoten'] . "'); window.location.href='index.php';</script>";
+// LƯU SESSION ĐỂ SỬ DỤNG TOÀN HỆ THỐNG
+$_SESSION['user_id']  = $user['id']; 
+$_SESSION['username'] = $user['username'];
+$_SESSION['role']     = $user['vaitro']; // admin, chunhiem, hoặc user
+$_SESSION['hoten']    = $user['hoten'];
+$_SESSION['id_clb']   = $user['id_clb']; 
+// ... (Đoạn mã xử lý sau khi kiểm tra mật khẩu đúng)
+if ($password == $user['password'] || password_verify($password, $user['password'])) {
+    
+    $_SESSION['user_id']  = $user['id']; 
+    $_SESSION['username'] = $user['username'];
+    $_SESSION['role']     = $user['vaitro']; // admin, chunhiem, user
+    $_SESSION['hoten']    = $user['hoten'];
+    $_SESSION['id_clb']   = $user['id_clb']; 
+
+    // PHÂN QUYỀN ĐIỀU HƯỚNG
+    if ($_SESSION['role'] === 'chunhiem') {
+        if (!empty($_SESSION['id_clb'])) {
+            $id_clb = $_SESSION['id_clb'];
+            echo "<script>
+                    alert('Chào Chủ nhiệm " . $user['hoten'] . "!'); 
+                    window.location.href='event/danhsach_thanhvien.php?id_clb=$id_clb';
+                  </script>";
         } else {
-            echo "<script>alert('Mật khẩu không chính xác!');</script>";
+            echo "<script>alert('Tài khoản chưa được gán CLB!'); window.location.href='index.php';</script>";
         }
+    } elseif ($_SESSION['role'] === 'admin') {
+        echo "<script>alert('Chào Admin!'); window.location.href='dashboard.php';</script>";
     } else {
-        echo "<script>alert('Tài khoản không tồn tại!');</script>";
+        echo "<script>alert('Đăng nhập thành công!'); window.location.href='index.php';</script>";
     }
 }
+        } else {
+            echo "<script>alert('Mật khẩu không đúng!');</script>";
+        }
+    } else {
+        echo "<script>alert('Tên đăng nhập không tồn tại!');</script>";
+    }
+
+    $stmt->close();
+}   
+// ...
 ?>
 
 <div class="container mt-5 mb-5">

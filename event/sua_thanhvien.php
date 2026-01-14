@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Kiểm tra nếu chưa đăng nhập HOẶC không phải admin thì đuổi ra trang chủ
-if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin' &&$_SESSION['role'] !== 'chunhiem') {
     echo "<script>
             alert('Bạn không có quyền truy cập trang quản trị!');
             window.location.href='index.php';

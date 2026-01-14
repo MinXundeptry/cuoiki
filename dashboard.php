@@ -1,8 +1,11 @@
 <?php 
-include 'header.php'; 
-include 'connect.php';
+// 1. Khởi động hệ thống
+include 'connect.php'; 
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Kiểm tra xem có ID câu lạc bộ không
+// 2. Kiểm tra ID câu lạc bộ
 if (!isset($_GET['id_clb'])) {
     header("Location: index.php");
     exit();
@@ -11,127 +14,169 @@ if (!isset($_GET['id_clb'])) {
 $id_clb = intval($_GET['id_clb']);
 $_SESSION['current_clb_id'] = $id_clb; 
 
-// Lấy thông tin CLB
+// 3. TRUY VẤN DỮ LIỆU CƠ BẢN
 $sql_clb = "SELECT ten_clb FROM clb WHERE id = $id_clb";
 $res_clb = $conn->query($sql_clb);
 $clb_info = $res_clb->fetch_assoc();
 
-// Đảm bảo lấy đúng ID người dùng từ Session (Bạn cần kiểm tra tên biến session khi đăng nhập)
+if (!$clb_info) {
+    header("Location: index.php");
+    exit();
+}
+
 $user_id = $_SESSION['user_id'] ?? 0; 
 $is_member = false;
 $is_pending = false;
 
 if ($user_id > 0) {
-    // 1. Kiểm tra đã là thành viên chính thức chưa
     $check_tv = $conn->query("SELECT id FROM thanhvien WHERE id_taikhoan = $user_id AND id_clb = $id_clb");
     if ($check_tv && $check_tv->num_rows > 0) $is_member = true;
 
-    // 2. Kiểm tra đang chờ duyệt không (Sửa tên bảng thành dangkyclb)
     $check_dk = $conn->query("SELECT id FROM dangkyclb WHERE id_taikhoan = $user_id AND id_clb = $id_clb AND trang_thai = 'Chờ duyệt'");
     if ($check_dk && $check_dk->num_rows > 0) $is_pending = true;
 }
 
-// Kiểm tra quyền Quản lý (Admin '0' hoặc 'admin', hoặc Chủ nhiệm '1')
-$is_admin_or_manager = (isset($_SESSION['role']) && ($_SESSION['role'] == '0' || $_SESSION['role'] == 'admin' || ($_SESSION['role'] == '1' && $_SESSION['id_clb'] == $id_clb)));
+/** * 4. LOGIC PHÂN QUYỀN (Thay đổi trọng tâm ở đây)
+ */
+$is_manager_power = false;    // Quyền Admin/Chủ nhiệm tại CLB hiện tại
+$is_other_club_leader = false; // Là Chủ nhiệm nhưng đang ở CLB khác
+
+if (isset($_SESSION['role'])) {
+    $role = $_SESSION['role'];
+    
+    // Admin (role 0) có quyền quản trị ở mọi CLB
+    if ($role == '0' || $role == 'admin') {
+        $is_manager_power = true;
+    } 
+    // Chủ nhiệm (role 1)
+    elseif ($role == '1' || $role == 'chunhiem') {
+        if (isset($_SESSION['id_clb']) && $_SESSION['id_clb'] == $id_clb) {
+            $is_manager_power = true; // Là chủ nhiệm của CLB này -> Hiện Menu Quản trị
+        } else {
+            $is_other_club_leader = true; // Là chủ nhiệm CLB khác -> Sẽ dùng để ẩn mục Đăng ký
+        }
+    }
+}
+
+include 'header.php'; 
 ?>
 
 <link href="css/index.css" rel="stylesheet">
+<style>
+    .card-custom { transition: all 0.3s cubic-bezier(.25,.8,.25,1); border: none; border-radius: 15px; overflow: hidden; }
+    .card-custom:hover { transform: translateY(-7px); box-shadow: 0 14px 28px rgba(0,0,0,0.1), 0 10px 10px rgba(0,0,0,0.08) !important; }
+    .icon-circle { width: 60px; height: 60px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px; }
+</style>
 
 <section class="hero text-center text-lg-start bg-primary text-white py-5">
     <div class="container">
         <div class="row align-items-center">
             <div class="col-lg-7">
-                <span class="badge bg-white text-primary mb-3 px-3 py-2 rounded-pill shadow-sm">Sáng Tạo - Kết Nối - Phát Triển</span>
+                <span class="badge bg-light text-primary mb-3 px-3 py-2 rounded-pill shadow-sm fw-bold">
+                    <?= $is_manager_power ? 'CHẾ ĐỘ QUẢN TRỊ VIÊN' : ($is_other_club_leader ? 'CHẾ ĐỘ KHÁCH' : 'KHÔNG GIAN SINH VIÊN') ?>
+                </span>
                 <h1 class="mb-4 fw-bold display-4">
-                    Chào mừng bạn đến với <br>
-                    <span class="text-warning"><?= htmlspecialchars($clb_info['ten_clb']) ?></span>
+                    <?= htmlspecialchars($clb_info['ten_clb']) ?>
                 </h1>
-                <p class="mb-5 opacity-75 fs-5">Nơi hội tụ những tài năng và niềm đam mê. Hãy cùng nhau xây dựng cộng đồng vững mạnh!</p>
+                <p class="mb-5 opacity-75 fs-5">Hệ thống quản lý thông tin và hoạt động thành viên dành riêng cho câu lạc bộ của bạn.</p>
                 <div class="d-flex flex-wrap gap-3 justify-content-center justify-content-lg-start">
-                    <a href="#modules" class="btn btn-light text-primary fw-bold shadow-lg px-4 py-3 rounded-pill">Khám phá ngay</a>
-                    <a href="index.php" class="btn btn-outline-light px-4 py-3 rounded-pill"> <i class="bi bi-arrow-left"></i> Trang chủ</a>
+                    <a href="#modules" class="btn btn-warning text-dark fw-bold px-4 py-3 rounded-pill shadow">Truy cập chức năng</a>
+                    <a href="index.php" class="btn btn-outline-light px-4 py-3 rounded-pill">Trang chủ</a>
                 </div>
             </div>
         </div>
     </div>
 </section>
 
-<section id="modules" class="modules-section py-5">
+<section id="modules" class="py-5 bg-light">
     <div class="container">
-        <div class="section-header text-center mb-5">
-            <h2 class="fw-bold">Hệ Thống Chức Năng</h2>
-            <div class="line mx-auto" style="width: 60px; height: 3px; background: #0dcaf0;"></div>
+        <div class="text-center mb-5">
+            <h2 class="fw-bold">BẢNG ĐIỀU KHIỂN</h2>
+            <div style="width: 50px; height: 3px; background: #ffc107; margin: 10px auto;"></div>
         </div>
 
-        <div class="row g-4">
-            <div class="col-lg-4 col-md-6">
-                <?php if ($is_admin_or_manager): ?>
+        <div class="row g-4 justify-content-center">
+            
+            <?php if ($is_manager_power): ?>
+                <div class="col-lg-4 col-md-6">
                     <a href="event/duyet_dangky_clb.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
-                        <div class="module-card border-warning shadow-sm p-4 text-center rounded-4" style="border: 2px solid #ffc107; background: #fff;">
-                            <div class="module-icon text-warning mb-3 fs-1"><i class="bi bi-person-check-fill"></i></div>
-                            <h4>Duyệt Thành Viên</h4>
-                            <p class="text-muted small">Quản lý yêu cầu tham gia và phê duyệt thành viên mới.</p>
+                        <div class="card card-custom shadow-sm p-4 text-center">
+                            <div class="icon-circle bg-warning bg-opacity-10 text-warning fs-2"><i class="bi bi-person-check-fill"></i></div>
+                            <h4 class="fw-bold">Duyệt Thành Viên</h4>
+                            <p class="text-muted small">Kiểm duyệt các đơn xin gia nhập mới nhất của sinh viên.</p>
                         </div>
                     </a>
-                <?php else: ?>
+                </div>
+
+                <div class="col-lg-4 col-md-6">
                     <a href="event/danhsach_thanhvien.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
-                        <div class="module-card shadow-sm p-4 text-center rounded-4" style="background: #fff;">
-                            <div class="module-icon text-primary mb-3 fs-1"><i class="bi bi-people-fill"></i></div>
-                            <h4>Thành Viên CLB</h4>
-                            <p class="text-muted small">Xem danh sách những người bạn đồng hành trong gia đình CLB.</p>
+                        <div class="card card-custom shadow-sm p-4 text-center">
+                            <div class="icon-circle bg-primary bg-opacity-10 text-primary fs-2"><i class="bi bi-people-fill"></i></div>
+                            <h4 class="fw-bold">Quản Lý Thành Viên</h4>
+                            <p class="text-muted small">Xem danh sách, phân quyền và quản lý thông tin hội viên.</p>
                         </div>
                     </a>
-                <?php endif; ?>
-            </div>
+                </div>
 
-            <div class="col-lg-4 col-md-6">
-                <a href="event/danhsach_sukien.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
-                    <div class="module-card shadow-sm p-4 text-center rounded-4" style="background: #fff;">
-                        <div class="module-icon text-success mb-3 fs-1"><i class="bi bi-calendar-event-fill"></i></div>
-                        <h4>Sự Kiện CLB</h4>
-                        <p class="text-muted small">Cập nhật lịch trình và tham gia các hoạt động sôi nổi.</p>
-                    </div>
-                </a>
-            </div>
-
-            <div class="col-lg-4 col-md-6">
-                <?php if ($is_member): ?>
-                    <div class="module-card bg-light border-0 shadow-sm p-4 text-center rounded-4">
-                        <div class="module-icon text-success mb-3 fs-1"><i class="bi bi-shield-check"></i></div>
-                        <h4>Đã Tham Gia</h4>
-                        <p class="text-muted small">Bạn đã là thành viên chính thức của CLB.</p>
-                    </div>
-                <?php elseif ($is_pending): ?>
-                    <div class="module-card bg-light border-0 shadow-sm p-4 text-center rounded-4">
-                        <div class="module-icon text-warning mb-3 fs-1"><i class="bi bi-hourglass-split"></i></div>
-                        <h4>Đang Chờ Duyệt</h4>
-                        <p class="text-muted small">Yêu cầu đã gửi thành công. Vui lòng đợi Ban quản lý phê duyệt.</p>
-                    </div>
-                <?php else: ?>
-                    <a href="event/xuly_thamgia_clb.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
-                        <div class="module-card border-info shadow-sm p-4 text-center rounded-4" style="border: 2px solid #0dcaf0; background: #fff;">
-                            <div class="module-icon text-info mb-3 fs-1"><i class="bi bi-pencil-square"></i></div>
-                            <h4>Đăng Ký Tham Gia</h4>
-                            <p class="text-muted small">Hãy gửi đơn gia nhập để cùng tham gia các hoạt động thú vị.</p>
+                <div class="col-lg-4 col-md-6">
+                    <a href="event/danhsach_sukien.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
+                        <div class="card card-custom shadow-sm p-4 text-center">
+                            <div class="icon-circle bg-success bg-opacity-10 text-success fs-2"><i class="bi bi-calendar-plus-fill"></i></div>
+                            <h4 class="fw-bold">Quản Lý Sự Kiện</h4>
+                            <p class="text-muted small">Tạo sự kiện mới, điểm danh và quản lý các hoạt động.</p>
                         </div>
                     </a>
-                <?php endif; ?>
-            </div>
-        </div>
-    </div>
-</section>
+                </div>
 
-<section class="py-5">
-    <div class="container">
-        <div class="p-5 text-white rounded-5 text-center shadow-lg" style="background: linear-gradient(45deg, #2b2d42 0%, #1a1b26 100%) !important;">
-            <?php if (!$is_member && !$is_pending && !$is_admin_or_manager): ?>
-                <h2 class="fw-bold mb-4">Bạn Đã Sẵn Sàng Trải Nghiệm?</h2>
-                <a href="event/xuly_thamgia_clb.php?id_clb=<?= $id_clb ?>" class="btn btn-info px-4 py-2 rounded-pill fw-bold text-white shadow">Gia Nhập Ngay</a>
             <?php else: ?>
-                <h2 class="fw-bold mb-4">Cảm Ơn Bạn Đã Đồng Hành!</h2>
-                <p class="mb-4 opacity-75">Cùng nhau xây dựng một cộng đồng sinh viên năng động.</p>
-                <a href="ho_tro.php" class="btn btn-outline-light px-4 py-2 rounded-pill">Gửi Ý Kiến Đóng Góp</a>
+                <div class="col-lg-4 col-md-6">
+                    <a href="event/danhsach_thanhvien.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
+                        <div class="card card-custom shadow-sm p-4 text-center">
+                            <div class="icon-circle bg-primary bg-opacity-10 text-primary fs-2"><i class="bi bi-people-fill"></i></div>
+                            <h4 class="fw-bold">Thành Viên CLB</h4>
+                            <p class="text-muted small">Giao lưu và xem danh sách các thành viên cùng tham gia.</p>
+                        </div>
+                    </a>
+                </div>
+
+                <div class="col-lg-4 col-md-6">
+                    <a href="event/danhsach_sukien.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
+                        <div class="card card-custom shadow-sm p-4 text-center">
+                            <div class="icon-circle bg-success bg-opacity-10 text-success fs-2"><i class="bi bi-calendar-event"></i></div>
+                            <h4 class="fw-bold">Sự Kiện CLB</h4>
+                            <p class="text-muted small">Tham gia các hoạt động sôi nổi do CLB tổ chức.</p>
+                        </div>
+                    </a>
+                </div>
+
+                <?php if (!$is_other_club_leader): ?>
+                    <div class="col-lg-4 col-md-6">
+                        <?php if ($is_member): ?>
+                            <div class="card card-custom bg-white border-success border-top border-4 shadow-sm p-4 text-center">
+                                <div class="icon-circle bg-success bg-opacity-10 text-success fs-2"><i class="bi bi-check-circle-fill"></i></div>
+                                <h4 class="fw-bold text-success">Đã Gia Nhập</h4>
+                                <p class="text-muted small">Bạn đang là thành viên chính thức của câu lạc bộ này.</p>
+                            </div>
+                        <?php elseif ($is_pending): ?>
+                            <div class="card card-custom bg-white border-warning border-top border-4 shadow-sm p-4 text-center">
+                                <div class="icon-circle bg-warning bg-opacity-10 text-warning fs-2"><i class="bi bi-clock-history"></i></div>
+                                <h4 class="fw-bold text-warning">Đang Chờ Duyệt</h4>
+                                <p class="text-muted small">Vui lòng chờ ban chủ nhiệm phê duyệt yêu cầu của bạn.</p>
+                            </div>
+                        <?php else: ?>
+                            <a href="event/xuly_thamgia_clb.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
+                                <div class="card card-custom shadow-sm p-4 text-center">
+                                    <div class="icon-circle bg-info bg-opacity-10 text-info fs-2"><i class="bi bi-pencil-square"></i></div>
+                                    <h4 class="fw-bold">Đăng Ký Tham Gia</h4>
+                                    <p class="text-muted small">Đăng ký ngay để trở thành một phần của cộng đồng này.</p>
+                                </div>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+                
             <?php endif; ?>
+
         </div>
     </div>
 </section>
