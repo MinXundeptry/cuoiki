@@ -109,7 +109,7 @@ include 'header.php';
                 </div>
 
                 <div class="col-lg-4 col-md-6">
-                    <a href="event/danhsach_thanhvien.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
+                    <a href="member/danhsach_thanhvien.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
                         <div class="card card-custom shadow-sm p-4 text-center">
                             <div class="icon-circle bg-primary bg-opacity-10 text-primary fs-2"><i class="bi bi-people-fill"></i></div>
                             <h4 class="fw-bold">Quản Lý Thành Viên</h4>
@@ -130,7 +130,7 @@ include 'header.php';
 
             <?php else: ?>
                 <div class="col-lg-4 col-md-6">
-                    <a href="event/danhsach_thanhvien.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
+                    <a href="member/danhsach_thanhvien.php?id_clb=<?= $id_clb ?>" class="text-decoration-none text-dark">
                         <div class="card card-custom shadow-sm p-4 text-center">
                             <div class="icon-circle bg-primary bg-opacity-10 text-primary fs-2"><i class="bi bi-people-fill"></i></div>
                             <h4 class="fw-bold">Thành Viên CLB</h4>

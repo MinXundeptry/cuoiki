@@ -98,7 +98,7 @@ function isActive($file)
                     <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">Thành viên</a>
                     <ul class="dropdown-menu shadow border-0">
                         <?php foreach ($list_clb as $clb): ?>
-                            <li><a class="dropdown-item" href="<?= BASE_URL ?>event/danhsach_thanhvien.php?id_clb=<?= $clb['id'] ?>"><?= htmlspecialchars($clb['ten_clb']) ?></a></li>
+                            <li><a class="dropdown-item" href="<?= BASE_URL ?>member/danhsach_thanhvien.php?id_clb=<?= $clb['id'] ?>"><?= htmlspecialchars($clb['ten_clb']) ?></a></li>
                         <?php endforeach; ?>
                     </ul>
                 </li>

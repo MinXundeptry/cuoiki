@@ -50,7 +50,7 @@ if ($password == $user['password'] || password_verify($password, $user['password
             $id_clb = $_SESSION['id_clb'];
             echo "<script>
                     alert('Chào Chủ nhiệm " . $user['hoten'] . "!'); 
-                    window.location.href='event/danhsach_thanhvien.php?id_clb=$id_clb';
+                    window.location.href='member/danhsach_thanhvien.php?id_clb=$id_clb';
                   </script>";
         } else {
             echo "<script>alert('Tài khoản chưa được gán CLB!'); window.location.href='index.php';</script>";
